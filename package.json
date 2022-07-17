@@ -1,0 +1,14 @@
+{
+  "name": "apijadwalkuliah",
+  "version": "1.0.0",
+  "license": "MIT",
+  "scripts": {
+    "dev": "nodemon src/index.js"
+  },
+  "dependencies": {
+    "fastify": "^4.2.1",
+    "google-tts-api": "^2.0.2",
+    "moment": "^2.29.4",
+    "mysql2": "^2.3.3"
+  }
+}
