@@ -6,9 +6,13 @@
     "dev": "nodemon src/index.js"
   },
   "dependencies": {
+    "@fastify/static": "^6.4.0",
+    "axios": "^0.27.2",
     "fastify": "^4.2.1",
+    "fastify-static": "^4.7.0",
     "google-tts-api": "^2.0.2",
     "moment": "^2.29.4",
-    "mysql2": "^2.3.3"
+    "mysql2": "^2.3.3",
+    "node-crunker": "^0.0.4"
   }
 }
