@@ -14,16 +14,17 @@ fastify.register(require('@fastify/static'), {
     prefix: '/audio/',
 })
 
+const connection =  mysql.createPool({
+    host: '127.0.0.1',
+    user: 'root',
+    password: 'root',
+    database: 'db_reminder_kuliah',
+    timezone: '+08:00'
+});
 
 fastify.get('/jadwal/stream', async function (request, reply) {
       
-    const connection = await mysql.createConnection({
-        host: '127.0.0.1',
-        user: 'root',
-        password: 'root',
-        database: 'db_reminder_kuliah',
-        timezone: 'Asia/Makassar'
-    });
+    
 
     const [rows, fields] = await connection.execute(`
         select * from trx_jadwal_kuliah as a 
@@ -35,11 +36,11 @@ fastify.get('/jadwal/stream', async function (request, reply) {
         and 
         a.flag_active = 1
         and 
-        a.flag_panggil = 0
+        (a.flag_panggil_mulai = 0 or a.flag_panggil_selesai = 0)
         order by jam_mulai asc
         limit 1
     `, [moment().format('YYYY-MM-DD')]);
-
+    // console.log()
     if (rows.length == 0){
         return {
             status: false,
@@ -48,10 +49,12 @@ fastify.get('/jadwal/stream', async function (request, reply) {
     }
 
     const [jadwal] = rows
-    console.log(jadwal.jam_mulai.substr(0, 5) == moment().format('HH:mm'))
-    if (jadwal.jam_mulai.substr(0, 5) == moment().format('HH:mm')){
+    
+    if (jadwal.jam_mulai.substr(0, 5) == moment().format('HH:mm') && jadwal.flag_panggil_mulai == 0){
+        console.log('mulai')
         const texts = [
-            `Mata kuliah ${jadwal.nm_mst_mata_kuliah}; akan segera di mulai di kelas ${jadwal.nm_mst_kelas}.`
+            `Halo,`,
+            `Mata kuliah ${jadwal.nm_mst_mata_kuliah}; akan segera di mulai di kelas ${jadwal.nm_mst_kelas}.`,
         ]
         const listStream = []
         let writestream = fs.createWriteStream('audio/finalaudio.mp3');
@@ -75,19 +78,22 @@ fastify.get('/jadwal/stream', async function (request, reply) {
         for (const stream of listStream){
             stream.pipe(writestream)
         }
-
+        await connection.execute(`
+            update trx_jadwal_kuliah set flag_panggil_mulai = 1 where id_trx_jadwal_kuliah = ?
+        `, [jadwal.id_trx_jadwal_kuliah]);
         return {
             status: true,
             url: `${baseUrl}/audio/finalaudio.mp3`
         }
     }
-    if (jadwal.jam_selesai.substr(0, 5) == moment().format('HH:mm')){
 
+    if (jadwal.jam_selesai.substr(0, 5) == moment().format('HH:mm') && jadwal.flag_panggil_selesai == 0){
+        console.log('selesai')
         const texts = [
             `Mata kuliah ${jadwal.nm_mst_mata_kuliah}; telah selesai di kelas ${jadwal.nm_mst_kelas}.`
         ]
         const listStream = []
-        let writestream = fs.createWriteStream('finalaudio.mp3');
+        let writestream = fs.createWriteStream('audio/finalaudio.mp3');
         for (let i = 0; i<texts.length; i++){
             const text = texts[i]
             const getAudio = await axios.get('http://translate.google.com/translate_tts', {
@@ -103,6 +109,9 @@ fastify.get('/jadwal/stream', async function (request, reply) {
             await fs.writeFileSync(`audio/audio_${i}.mp3`, getAudio.data)
 
             listStream.push(fs.createReadStream(`audio/audio_${i}.mp3`))
+            await connection.execute(`
+                update trx_jadwal_kuliah set flag_panggil_selesai = 1 where id_trx_jadwal_kuliah = ?
+            `, [jadwal.id_trx_jadwal_kuliah]);
         }
 
         for (const stream of listStream){
@@ -126,7 +135,9 @@ const startServer = async () => {
         const port = 9999
 
 
-        await fastify.listen(port, host)
+        await fastify.listen({
+            port, host
+        })
         
         console.log(`server listening on ${host}:${fastify.server.address().port}`)        
         fastify.log.info(`server listening on ${fastify.server.address().port}`)
