@@ -2,8 +2,6 @@ const baseUrl = 'https://jadwalkuliahapi.alfianlensun.dev'
 const fastify = require('fastify')({
     logger: false
 })
-const NodeCrunker = require('node-crunker');
-const audio = new NodeCrunker();
 
 const mysql = require('mysql2/promise')
 const moment = require('moment');
