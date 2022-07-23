@@ -105,19 +105,19 @@ fastify.get('/jadwal/stream', async function (request, reply) {
     await fs.writeFileSync(`audio/audio_b.mp3`, getOut.data)
     listStream.push(`audio/audio_b.mp3`)
     
-    // for (let i = 0; i<texts.length; i++){
-    //     const text = texts[i]
-    //     if (text.type == 'mulai'){
-    //         await connection.execute(`
-    //             update trx_jadwal_kuliah set flag_panggil_mulai = 1 where id_trx_jadwal_kuliah = ?
-    //         `, [text.id]);
-    //     }
-    //     if (text.type == 'selesai'){
-    //         await connection.execute(`
-    //             update trx_jadwal_kuliah set flag_panggil_selesai = 1 where id_trx_jadwal_kuliah = ?
-    //         `, [text.id]);
-    //     }
-    // }
+    for (let i = 0; i<texts.length; i++){
+        const text = texts[i]
+        if (text.type == 'mulai'){
+            await connection.execute(`
+                update trx_jadwal_kuliah set flag_panggil_mulai = 1 where id_trx_jadwal_kuliah = ?
+            `, [text.id]);
+        }
+        if (text.type == 'selesai'){
+            await connection.execute(`
+                update trx_jadwal_kuliah set flag_panggil_selesai = 1 where id_trx_jadwal_kuliah = ?
+            `, [text.id]);
+        }
+    }
     if (fs.existsSync(path.join('audio', 'finalaudio.mp3'))){
         await fs.unlinkSync(path.join('audio', 'finalaudio.mp3'))
     }
