@@ -15,7 +15,7 @@ fastify.register(require('@fastify/static'), {
 })
 
 const connection =  mysql.createPool({
-    host: '127.0.0.1',
+    host: '165.22.60.214',
     user: 'root',
     password: 'root',
     database: 'db_reminder_kuliah',
@@ -23,9 +23,6 @@ const connection =  mysql.createPool({
 });
 
 fastify.get('/jadwal/stream', async function (request, reply) {
-      
-    
-
     const [rows, fields] = await connection.execute(`
         select * from trx_jadwal_kuliah as a 
         join mst_mata_kuliah  as b on a.id_mst_mata_kuliah = b.id_mst_mata_kuliah
@@ -47,85 +44,80 @@ fastify.get('/jadwal/stream', async function (request, reply) {
             url: null
         }
     }
+    const listStream = []
+    const listjadwal = rows
+    const texts = []
 
-    const [jadwal] = rows
-    
-    if (jadwal.jam_mulai.substr(0, 5) == moment().format('HH:mm') && jadwal.flag_panggil_mulai == 0){
-        console.log('mulai')
-        const texts = [
-            `Halo,`,
-            `Mata kuliah ${jadwal.nm_mst_mata_kuliah}; akan segera di mulai di kelas ${jadwal.nm_mst_kelas}.`,
-        ]
-        const listStream = []
-        let writestream = fs.createWriteStream('audio/finalaudio.mp3');
-        for (let i = 0; i<texts.length; i++){
-            const text = texts[i]
-            const getAudio = await axios.get('http://translate.google.com/translate_tts', {
-                params: {
-                    ie: 'UTF-8',
-                    client: 'tw-ob',
-                    tl: 'id',
-                    q: text
-                },
-                responseType: 'arraybuffer'
+    for (const jadwal of listjadwal){
+        if (jadwal.jam_mulai.substr(0, 5) == moment().format('HH:mm') && jadwal.flag_panggil_mulai == 0){
+            texts.push({
+                id: jadwal.id,
+                type: 'mulai',
+                text: `Mata kuliah ${jadwal.nm_mst_mata_kuliah}; akan segera di mulai di kelas ${jadwal.nm_mst_kelas}.`
             })
-        
-            await fs.writeFileSync(`audio/audio_${i}.mp3`, getAudio.data)
-
-            listStream.push(fs.createReadStream(`audio/audio_${i}.mp3`))
         }
 
-        for (const stream of listStream){
-            stream.pipe(writestream)
-        }
-        await connection.execute(`
-            update trx_jadwal_kuliah set flag_panggil_mulai = 1 where id_trx_jadwal_kuliah = ?
-        `, [jadwal.id_trx_jadwal_kuliah]);
-        return {
-            status: true,
-            url: `${baseUrl}/audio/finalaudio.mp3`
+        if (jadwal.jam_selesai.substr(0, 5) == moment().format('HH:mm') && jadwal.flag_panggil_selesai == 0){
+            texts.push({
+                id: jadwal.id,
+                type: 'selesai',
+                text: `Mata kuliah ${jadwal.nm_mst_mata_kuliah}; akan segera di mulai di kelas ${jadwal.nm_mst_kelas}.`
+            })   
         }
     }
 
-    if (jadwal.jam_selesai.substr(0, 5) == moment().format('HH:mm') && jadwal.flag_panggil_selesai == 0){
-        console.log('selesai')
-        const texts = [
-            `Mata kuliah ${jadwal.nm_mst_mata_kuliah}; telah selesai di kelas ${jadwal.nm_mst_kelas}.`
-        ]
-        const listStream = []
-        let writestream = fs.createWriteStream('audio/finalaudio.mp3');
-        for (let i = 0; i<texts.length; i++){
-            const text = texts[i]
-            const getAudio = await axios.get('http://translate.google.com/translate_tts', {
-                params: {
-                    ie: 'UTF-8',
-                    client: 'tw-ob',
-                    tl: 'id',
-                    q: text
-                },
-                responseType: 'arraybuffer'
-            })
-        
-            await fs.writeFileSync(`audio/audio_${i}.mp3`, getAudio.data)
+    if (texts.length == 0){
+        return {
+            status: false,
+            url: null
+        }
+    }
 
-            listStream.push(fs.createReadStream(`audio/audio_${i}.mp3`))
+    if (fs.existsSync(path.join('audio', 'finalaudio.mp3'))){
+        fs.unlinkSync(path.join('audio', 'finalaudio.mp3'))
+    }
+    
+    let writestream = fs.createWriteStream('audio/finalaudio.mp3');
+    for (let i = 0; i<texts.length; i++){
+        const text = texts[i]
+        const getAudio = await axios.get('http://translate.google.com/translate_tts', {
+            params: {
+                ie: 'UTF-8',
+                client: 'tw-ob',
+                tl: 'id',
+                q: text.text
+            },
+            responseType: 'arraybuffer'
+        })
+        await fs.writeFileSync(`audio/audio_${i}.mp3`, getAudio.data)
+        listStream.push(fs.createReadStream(`audio/audio_${i}.mp3`))
+    }
+
+    for (let i = 0; i<texts.length; i++){
+        const text = texts[i]
+        if (text.type == 'mulai'){
+            await connection.execute(`
+                update trx_jadwal_kuliah set flag_panggil_mulai = 1 where id_trx_jadwal_kuliah = ?
+            `, [text.id]);
+        }
+        if (text.type == 'selesai'){
             await connection.execute(`
                 update trx_jadwal_kuliah set flag_panggil_selesai = 1 where id_trx_jadwal_kuliah = ?
-            `, [jadwal.id_trx_jadwal_kuliah]);
-        }
-
-        for (const stream of listStream){
-            stream.pipe(writestream)
-        }
-        return {
-            status: true,
-            url: `${baseUrl}/audio/finalaudio.mp3`
+            `, [text.id]);
         }
     }
+
+    const intro = await fs.createReadStream(`audio/in.mp3`)
+    await intro.pipe(writestream)
+    for (const stream of listStream){
+        await stream.pipe(writestream)
+    }
     
+    const outro = await fs.createReadStream(`audio/out.mp3`)
+    await outro.pipe(writestream)
     return {
-        status: false,
-        url: null
+        status: true,
+        url: `${baseUrl}/audio/finalaudio.mp3`
     }
 })
 
