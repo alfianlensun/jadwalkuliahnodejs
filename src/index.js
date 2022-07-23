@@ -2,9 +2,8 @@ const baseUrl = 'https://jadwalkuliahapi.alfianlensun.dev'
 const fastify = require('fastify')({
     logger: false
 })
-const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
-const ffmpeg = require('fluent-ffmpeg')
-ffmpeg.setFfmpegPath(ffmpegPath);
+const NodeCrunker = require('node-crunker');
+const audio = new NodeCrunker();
 
 const mysql = require('mysql2/promise')
 const moment = require('moment');
@@ -12,7 +11,7 @@ const fs = require('fs');
 const axios = require('axios');
 const path = require('path')
 const util = require('util');
-const audioconcat = require('audioconcat')
+
 fastify.register(require('@fastify/static'), {
     root: path.join(__dirname,'..', 'audio'),
     prefix: '/audio/',
@@ -47,15 +46,15 @@ fastify.get('/jadwal/stream', async function (request, reply) {
             url: null
         }
     }
-
-    const writestream = fs.createWriteStream('audio/finalaudiotemp.mp3');
-    const listStream = []
+    const writestream = fs.createWriteStream('audio/finalaudio.mp3');
+    const listStream = [
+        
+    ]
     
 
     const listjadwal = rows
     const texts = []
 
-    
     for (const jadwal of listjadwal){
         if (jadwal.jam_mulai.substr(0, 5) == moment().format('HH:mm') && jadwal.flag_panggil_mulai == 0){
             texts.push({
@@ -79,11 +78,13 @@ fastify.get('/jadwal/stream', async function (request, reply) {
             url: null
         }
     }
-    const getIn = await axios.get(`${baseUrl}/audio/in.mp3`, {
-        responseType: 'arraybuffer'
-    })
-    await fs.writeFileSync(`audio/audio_a.mp3`, getIn.data)
-    listStream.push(`audio/audio_a.mp3`)
+
+    if (fs.existsSync(path.join('audio', 'finalaudio.mp3'))){
+        fs.unlinkSync(path.join('audio', 'finalaudio.mp3'))
+    }
+    
+
+    
     for (let i = 0; i<texts.length; i++){
         const text = texts[i]
         const getAudio = await axios.get('http://translate.google.com/translate_tts', {
@@ -95,15 +96,9 @@ fastify.get('/jadwal/stream', async function (request, reply) {
             },
             responseType: 'arraybuffer'
         })
-        console.log(getAudio)
         await fs.writeFileSync(`audio/audio_${i}.mp3`, getAudio.data)
-        listStream.push(`audio/audio_${i}.mp3`)
+        listStream.push(fs.createReadStream(`audio/audio_${i}.mp3`))
     }
-    const getOut = await axios.get(`${baseUrl}/audio/out.mp3`, {
-        responseType: 'arraybuffer'
-    })
-    await fs.writeFileSync(`audio/audio_b.mp3`, getOut.data)
-    listStream.push(`audio/audio_b.mp3`)
     
     for (let i = 0; i<texts.length; i++){
         const text = texts[i]
@@ -118,27 +113,11 @@ fastify.get('/jadwal/stream', async function (request, reply) {
             `, [text.id]);
         }
     }
-    if (fs.existsSync(path.join('audio', 'finalaudio.mp3'))){
-        await fs.unlinkSync(path.join('audio', 'finalaudio.mp3'))
+    
+    
+    for (const stream of listStream){
+        stream.pipe(writestream)
     }
-
-    await new Promise((rs, rj) => {
-        audioconcat(listStream)
-            .concat('audio/finalaudio.mp3')
-            .on('start', function (command) {
-                console.log('ffmpeg process started:', command)
-            })
-            .on('error', function (err, stdout, stderr) {
-                console.error('Error:', err)
-                console.error('ffmpeg stderr:', stderr)
-                rj()
-            })
-            .on('end', function (output) {
-                console.error('Audio created in:', output)
-                rs()
-            })
-
-    })
     return {
         status: true,
         url: `${baseUrl}/audio/finalaudio.mp3`
