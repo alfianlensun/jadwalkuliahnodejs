@@ -22,7 +22,7 @@ const connection =  mysql.createPool({
     // host: '127.0.0.1',
     host: '165.22.60.214',
     user: 'root',
-    password: 'root',
+    password: '12u38123gg!',
     database: 'db_reminder_kuliah',
     timezone: '+08:00'
 });
