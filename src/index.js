@@ -1,4 +1,4 @@
-const baseUrl = 'https://jadwalkuliahapi.alfianlensun.dev/jadwal/stream'
+const baseUrl = 'https://jadwalkuliahapi.alfianlensun.dev'
 const fastify = require('fastify')({
     logger: false
 })
