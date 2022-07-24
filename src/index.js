@@ -1,4 +1,4 @@
-const baseUrl = 'https://jadwalkuliahapi.alfianlensun.dev'
+const baseUrl = 'http://165.22.60.214:9999'
 const fastify = require('fastify')({
     logger: false
 })
