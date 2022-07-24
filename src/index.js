@@ -1,7 +1,10 @@
-const baseUrl = 'https://jadwalkuliahapi.alfianlensun.dev'
+const baseUrl = 'https://jadwalkuliahapi.alfianlensun.dev/jadwal/stream'
 const fastify = require('fastify')({
     logger: false
 })
+
+const audioconcat = require('audioconcat')
+const ffmpeg = require('fluent-ffmpeg')
 
 const mysql = require('mysql2/promise')
 const moment = require('moment');
@@ -16,6 +19,7 @@ fastify.register(require('@fastify/static'), {
 })
 
 const connection =  mysql.createPool({
+    // host: '127.0.0.1',
     host: '165.22.60.214',
     user: 'root',
     password: 'root',
@@ -44,7 +48,7 @@ fastify.get('/jadwal/stream', async function (request, reply) {
             url: null
         }
     }
-    const writestream = fs.createWriteStream('audio/finalaudio.mp3');
+    
     const listStream = [
         
     ]
@@ -77,11 +81,6 @@ fastify.get('/jadwal/stream', async function (request, reply) {
         }
     }
 
-    if (fs.existsSync(path.join('audio', 'finalaudio.mp3'))){
-        fs.unlinkSync(path.join('audio', 'finalaudio.mp3'))
-    }
-    
-
     
     for (let i = 0; i<texts.length; i++){
         const text = texts[i]
@@ -92,11 +91,17 @@ fastify.get('/jadwal/stream', async function (request, reply) {
                 tl: 'id',
                 q: text.text
             },
+            decompress: true,
             responseType: 'arraybuffer'
         })
+        if (fs.existsSync(path.join('audio', `audio_${i}.mp3`))){
+            await fs.unlinkSync(path.join('audio', `audio_${i}.mp3`))
+        }
         await fs.writeFileSync(`audio/audio_${i}.mp3`, getAudio.data)
-        listStream.push(fs.createReadStream(`audio/audio_${i}.mp3`))
+        listStream.push(`audio/audio_${i}.mp3`)
     }
+
+    
     
     for (let i = 0; i<texts.length; i++){
         const text = texts[i]
@@ -111,11 +116,34 @@ fastify.get('/jadwal/stream', async function (request, reply) {
             `, [text.id]);
         }
     }
-    
-    
-    for (const stream of listStream){
-        stream.pipe(writestream)
+    if (fs.existsSync(path.join('audio', 'finalaudio.mp3'))){
+        await fs.unlinkSync(path.join('audio', 'finalaudio.mp3'))
     }
+
+    await new Promise((rs, rj) => {
+        audioconcat([
+            'audio/in.mp3',
+            ...listStream,
+            'audio/out.mp3'
+        ])
+        .concat('audio/finalaudio.mpeg')
+        .on('start', function (command) {
+            console.log('ffmpeg process started:', command)
+        })
+        .on('error', function (err, stdout, stderr) {
+            rj(err)
+        })
+        .on('end', function (output) {
+            console.error('Audio created in:', output)
+            rs()
+        })
+    })
+    
+    ffmpeg('audio/finalaudio.mpeg').withAudioCodec('libmp3lame')
+                                    .toFormat('mp3')
+                                    .saveToFile('audio/finalaudio.mp3')
+    
+    
     return {
         status: true,
         url: `${baseUrl}/audio/finalaudio.mp3`
