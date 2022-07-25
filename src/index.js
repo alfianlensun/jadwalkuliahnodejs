@@ -116,6 +116,10 @@ fastify.get('/jadwal/stream', async function (request, reply) {
             `, [text.id]);
         }
     }
+    if (fs.existsSync(path.join('audio', 'finalaudio.mpeg'))){
+        await fs.unlinkSync(path.join('audio', 'finalaudio.mpeg'))
+    }
+
     if (fs.existsSync(path.join('audio', 'finalaudio.mp3'))){
         await fs.unlinkSync(path.join('audio', 'finalaudio.mp3'))
     }
